@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>盤點-得正物料庫存</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@zip.js/zip.js/dist/zip.min.js"></script>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+  body {
+    font-family: -apple-system, "PingFang TC", "Microsoft JhengHei", sans-serif;
+    background: #f5f5f5;
+    margin: 0;
+    padding: 16px;
+    padding-bottom: 100px;
+    color: #1a1a1a;
+  }
+  .container { max-width: 480px; margin: 0 auto; }
+  h1 { font-size: 20px; margin: 4px 0 2px; }
+  .subtitle { color: #888; font-size: 13px; margin-bottom: 16px; }
+  .screen { display: none; }
+  .screen.active { display: block; }
+
+  .card {
+    background: white;
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  label { display: block; font-weight: 600; margin-bottom: 6px; font-size: 15px; }
+  input[type=text], input[type=number] {
+    width: 100%;
+    padding: 12px;
+    font-size: 18px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    margin-bottom: 4px;
+    -webkit-appearance: none;
+  }
+  input[type=number] { text-align: right; }
+  button {
+    width: 100%;
+    padding: 14px;
+    font-size: 16px;
+    font-weight: 600;
+    border: none;
+    border-radius: 8px;
+    background: #2563eb;
+    color: white;
+    cursor: pointer;
+    margin-top: 10px;
+  }
+  button:active { background: #1d4ed8; }
+  button.secondary { background: #64748b; }
+  button.secondary:active { background: #475569; }
+  button.success { background: #16a34a; }
+  button.success:active { background: #15803d; }
+  button.danger { background: #dc2626; }
+  button.danger:active { background: #b91c1c; }
+  button:disabled { background: #cbd5e1; }
+
+  .item-category {
+    font-size: 17px;
+    font-weight: 700;
+    color: #2563eb;
+    margin: 18px 0 8px;
+    padding-bottom: 6px;
+    border-bottom: 2px solid #e0e7ff;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+  }
+  .category-group:first-child .item-category { margin-top: 0; }
+  .item-category .arrow { font-size: 22px; transition: transform 0.15s; color: #2563eb; }
+  .category-group.collapsed .item-category .arrow { transform: rotate(-90deg); }
+  .category-group.collapsed .category-items { display: none; }
+  .category-note {
+    width: 100%; box-sizing: border-box; resize: vertical;
+    min-height: 36px; padding: 8px 10px; margin: 0 0 10px;
+    font-size: 13px; font-family: inherit; color: #444;
+    border: 1px dashed #d8dceb; border-radius: 8px; background: #fbfcff;
+  }
+  .category-note::placeholder { color: #aab0c0; }
+  .category-note-item { font-size: 14px; padding: 6px 0; border-bottom: 1px solid #f0f0f0; }
+  .category-note-item:last-child { border-bottom: none; }
+  .item-row {
+    background: #f8fafc;
+    border: 1px solid #eef1f5;
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-bottom: 10px;
+  }
+  .item-row:last-child { margin-bottom: 0; }
+  .item-name { font-size: 15px; font-weight: 500; }
+  .item-meta { font-size: 12px; color: #999; margin-bottom: 6px; }
+  .qty-row { display: flex; align-items: center; gap: 10px; }
+  .qty-btn {
+    width: 44px; height: 44px; border-radius: 12px; border: none;
+    background: #e7edfc; font-size: 22px; font-weight: 700; color: #2563eb;
+    flex-shrink: 0; margin: 0; padding: 0;
+    display: flex; align-items: center; justify-content: center; line-height: 1;
+    transition: transform 0.08s ease, background 0.15s ease;
+  }
+  .qty-btn:active { background: #cddafc; transform: scale(0.9); }
+  .qty-row input { flex: 1; margin: 0; text-align: center; }
+
+  .field-label { font-size: 12px; color: #888; font-weight: 600; margin: 10px 0 4px; }
+  .weight-extra { display: flex; gap: 8px; }
+  .weight-extra .weight-field { flex: 1; }
+  .weight-extra input[type=number] {
+    width: 100%; padding: 10px; font-size: 16px; border: 1px solid #ddd;
+    border-radius: 8px; text-align: center; margin: 0;
+  }
+
+  .progress-bar {
+    height: 6px; background: #e5e7eb; border-radius: 3px; overflow: hidden;
+    margin-bottom: 16px;
+  }
+  .progress-fill { height: 100%; background: #2563eb; transition: width 0.2s; }
+
+  .search-box { position: relative; margin-bottom: 12px; }
+  .search-box input[type=text] { margin-bottom: 0; font-size: 16px; padding: 12px 14px; }
+  .search-results {
+    display: none; position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+    background: white; border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+    max-height: 300px; overflow-y: auto; z-index: 20;
+  }
+  .search-result-item { padding: 12px 14px; border-bottom: 1px solid #f0f0f0; cursor: pointer; }
+  .search-result-item:last-child { border-bottom: none; }
+  .search-result-item:active { background: #f5f7ff; }
+  .search-result-name { font-size: 14px; font-weight: 500; }
+  .search-result-meta { font-size: 12px; color: #999; margin-top: 2px; }
+  .search-empty { padding: 14px; text-align: center; color: #999; font-size: 13px; }
+
+  .item-row.highlight { animation: itemHighlight 1.6s ease; border-radius: 8px; }
+  @keyframes itemHighlight {
+    0%, 100% { background: transparent; }
+    15% { background: #fff3b0; }
+  }
+
+  .fixed-bottom {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: white; padding: 12px 16px; padding-bottom: max(12px, env(safe-area-inset-bottom));
+    box-shadow: 0 -2px 8px rgba(0,0,0,0.08);
+  }
+  .fixed-bottom .container { max-width: 480px; }
+
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid #eee; font-size: 13px; }
+  th { color: #888; font-weight: 600; font-size: 12px; }
+  .num { text-align: right; }
+
+  .empty-state { text-align: center; padding: 30px 16px; color: #999; }
+  .success-icon { font-size: 48px; margin-bottom: 8px; }
+  .history-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 0; border-bottom: 1px solid #f0f0f0;
+  }
+  .history-item:last-child { border-bottom: none; }
+  .history-item input[type=checkbox] { width: 20px; height: 20px; flex-shrink: 0; margin: 0; }
+  .history-item-main {
+    flex: 1; display: flex; justify-content: space-between; align-items: center; cursor: pointer;
+  }
+  .history-item .name { font-weight: 500; }
+  .history-item .date { font-size: 12px; color: #999; }
+
+  .hero { text-align: center; padding: 20px 0 24px; }
+  .hero-icon {
+    width: 64px; height: 64px; margin: 0 auto 14px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 30px; border-radius: 20px;
+    background: linear-gradient(135deg, #2563eb, #5b8bfa);
+    box-shadow: 0 8px 18px rgba(37,99,235,0.28);
+  }
+  .hero h1 { margin: 0 0 8px; font-size: 22px; }
+  .hero .subtitle { margin: 0 auto; max-width: 280px; line-height: 1.5; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- ══════════ 畫面一：開始盤點 ══════════ -->
+  <div id="screen-start" class="screen active">
+    <div class="hero">
+      <div class="hero-icon">📋</div>
+      <h1>盤點-得正物料庫存</h1>
+      <div class="subtitle">資料只存在這裝置上，盤完記得匯出並用 LINE 傳出</div>
+    </div>
+
+    <div class="card">
+      <label>你的姓名</label>
+      <input type="text" id="staffName" placeholder="請輸入姓名">
+      <button onclick="startCount()">開始盤點</button>
+    </div>
+
+    <div class="card">
+      <button class="secondary" onclick="showScreen('history')">📊 查看本機歷史紀錄</button>
+    </div>
+  </div>
+
+  <!-- ══════════ 畫面二：盤點中 ══════════ -->
+  <div id="screen-count" class="screen">
+    <h1>盤點中</h1>
+    <div class="subtitle" id="countSubtitle"></div>
+    <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+
+    <div class="search-box">
+      <input type="text" id="itemSearchInput" placeholder="🔍 搜尋品項名稱或編號"
+             oninput="onItemSearchInput(this.value)"
+             onfocus="onItemSearchInput(this.value)"
+             onblur="setTimeout(hideItemSearchResults, 200)">
+      <div class="search-results" id="itemSearchResults"></div>
+    </div>
+
+    <div class="card" id="itemList"></div>
+
+    <button class="success" onclick="finishCount()">✅ 完成盤點</button>
+    <button class="secondary" onclick="showScreen('start')">取消</button>
+  </div>
+
+  <!-- ══════════ 畫面三：完成，匯出/分享 ══════════ -->
+  <div id="screen-done" class="screen">
+    <div class="card" style="text-align:center;">
+      <div class="success-icon">✅</div>
+      <h1>盤點完成</h1>
+      <div class="subtitle" id="doneSummary"></div>
+    </div>
+
+    <div class="card">
+      <table id="doneTable"></table>
+    </div>
+
+    <div class="card" id="doneNotesCard" style="display:none;">
+      <label>大類備註</label>
+      <div id="doneNotes"></div>
+    </div>
+
+    <button class="success" onclick="shareExcel()">📤 匯出並用 LINE 傳送</button>
+    <button class="secondary" onclick="downloadExcel()">💾 只下載 Excel 檔</button>
+    <button class="secondary" onclick="backToEdit()">↩️ 返回修改</button>
+    <button class="secondary" onclick="showScreen('start')">回首頁</button>
+  </div>
+
+  <!-- ══════════ 畫面四：歷史紀錄 ══════════ -->
+  <div id="screen-history" class="screen">
+    <h1>📊 本機歷史紀錄</h1>
+    <div class="subtitle">只顯示這支手機上盤過的紀錄，可勾選單號後刪除</div>
+
+    <div class="card" id="historyList"></div>
+
+    <button id="deleteSelectedBtn" class="danger" onclick="deleteSelectedHistory()" disabled>🗑 刪除已選取</button>
+    <button class="secondary" onclick="showScreen('start')">回首頁</button>
+  </div>
+
+</div>
+
+<script>
+// ══════════════════════════════════════════════
+// 物料主檔（來自「盤點品項主檔.xlsx」的品項主檔工作表）
+// 之後要更新品項，直接改這個陣列即可
+// ══════════════════════════════════════════════
+const STORE_NAME = "得正";
+const ITEMS = [{"sku": "101001", "name": "紅茶", "spec": "600g/包", "unit": "包", "price": 420.0, "category": "茶葉/茶乾"}, {"sku": "101002", "name": "綠茶", "spec": "600g/包", "unit": "包", "price": 480.0, "category": "茶葉/茶乾"}, {"sku": "101003", "name": "春烏龍(台中以北下單)", "spec": "600g/包", "unit": "包", "price": 520.0, "category": "茶葉/茶乾"}, {"sku": "101005", "name": "輕烏龍", "spec": "600g/包", "unit": "包", "price": 490.0, "category": "茶葉/茶乾"}, {"sku": "101006", "name": "焙烏龍(台中以北下單)", "spec": "600g/包", "unit": "包", "price": 490.0, "category": "茶葉/茶乾"}, {"sku": "101013", "name": "紅烏龍", "spec": "600g/包", "unit": "包", "price": 680.0, "category": "茶葉/茶乾"}, {"sku": "104001", "name": "三花奶精", "spec": "907.4g*12包/箱", "unit": "箱", "price": 1620.0, "category": "糖漿/粉類/凍粉"}, {"sku": "104002", "name": "阿華田", "spec": "1.8kg/罐", "unit": "罐", "price": 490.0, "category": "糖漿/粉類/凍粉"}, {"sku": "104003", "name": "奶蓋特調粉", "spec": "126g/包, 60包/箱", "unit": "箱", "price": 2100.0, "category": "糖漿/粉類/凍粉"}, {"sku": "105002", "name": "果凍原粉", "spec": "1kg/包", "unit": "包", "price": 750.0, "category": "糖漿/粉類/凍粉"}, {"sku": "105003", "name": "青梅組(4罐脆梅)", "spec": "3kg*4罐/箱", "unit": "箱", "price": 2660.0, "category": "糖漿/粉類/凍粉"}, {"sku": "105004", "name": "青梅組(4罐梅汁)", "spec": "6000g*4罐/箱", "unit": "箱", "price": 3700.0, "category": "糖漿/粉類/凍粉"}, {"sku": "105005", "name": "酵素粉", "spec": "5kg/1箱", "unit": "箱", "price": 490.0, "category": "糖漿/粉類/凍粉"}, {"sku": "105006", "name": "甘蔗液糖", "spec": "25KG/罐", "unit": "桶", "price": 740.0, "category": "糖漿/粉類/凍粉"}, {"sku": "105007", "name": "粗鹽", "spec": "25KG/袋", "unit": "袋", "price": 215.0, "category": "糖漿/粉類/凍粉"}, {"sku": "105009", "name": "二砂(時價)", "spec": "600g/包/時價", "unit": "袋", "price": 680.0, "category": "糖漿/粉類/凍粉"}, {"sku": "105010", "name": "白細砂", "spec": "1kg/包, 20包", "unit": "袋", "price": 780.0, "category": "糖漿/粉類/凍粉"}, {"sku": "105017", "name": "焙茶粉", "spec": "300g/包,5包/1", "unit": "包", "price": 315.0, "category": "糖漿/粉類/凍粉"}, {"sku": "201001", "name": "660紙杯", "spec": "1000個/1箱", "unit": "箱", "price": 1880.0, "category": "包材"}, {"sku": "201002", "name": "500紙杯", "spec": "1000個/1箱", "unit": "箱", "price": 1770.0, "category": "包材"}, {"sku": "201005", "name": "紙杯套", "spec": "1000個/1箱", "unit": "箱", "price": 1050.0, "category": "包材"}, {"sku": "201006", "name": "就口杯蓋", "spec": "2000個/1箱", "unit": "箱", "price": 1900.0, "category": "包材"}, {"sku": "202015", "name": "新版細吸管", "spec": "5公斤/1箱", "unit": "箱", "price": 690.0, "category": "包材"}, {"sku": "202016", "name": "新版粗吸管", "spec": "5公斤/1箱", "unit": "箱", "price": 690.0, "category": "包材"}, {"sku": "203002", "name": "四格杯架", "spec": "1000個/1箱", "unit": "箱", "price": 1290.0, "category": "包材"}, {"sku": "203003", "name": "六格杯架", "spec": "1000個/1箱", "unit": "箱", "price": 1830.0, "category": "包材"}, {"sku": "203009", "name": "新版PE封口膜", "spec": "6捲/1箱", "unit": "箱", "price": 4320.0, "category": "包材"}, {"sku": "203010", "name": "新1杯袋", "spec": "15kg/1箱", "unit": "箱", "price": 1750.0, "category": "包材"}, {"sku": "203011", "name": "新4杯袋", "spec": "15kg/1箱", "unit": "箱", "price": 1750.0, "category": "包材"}, {"sku": "203012", "name": "新6杯袋", "spec": "15kg/1箱", "unit": "箱", "price": 1750.0, "category": "包材"}, {"sku": "203016", "name": "得正霧面OPP膠帶", "spec": "15mm*30m/捲", "unit": "箱", "price": 2470.0, "category": "包材"}, {"sku": "203019", "name": "二格杯架", "spec": "2000個/1箱", "unit": "箱", "price": 1200.0, "category": "包材"}, {"sku": "203021", "name": "新2杯袋", "spec": "15kg/1箱", "unit": "箱", "price": 1750.0, "category": "包材"}, {"sku": "BA013", "name": "珍珠粉圓(A)", "spec": "3kg/包, 6包/1", "unit": "箱", "price": 900.0, "category": "配料"}, {"sku": "BA015", "name": "黃金珍珠(A)", "spec": "3kg/包, 6包/1", "unit": "箱", "price": 1260.0, "category": "配料"}, {"sku": "QC001", "name": "甘蔗原汁", "spec": "900cc/瓶", "unit": "瓶", "price": 75.0, "category": "原汁/鮮乳"}, {"sku": "QC002", "name": "柳丁原汁", "spec": "900cc/瓶", "unit": "瓶", "price": 110.0, "category": "原汁/鮮乳"}, {"sku": "QC003", "name": "葡萄柚原汁", "spec": "900cc/瓶", "unit": "瓶", "price": 200.0, "category": "原汁/鮮乳"}, {"sku": "QC004", "name": "雙柚原汁", "spec": "900cc/瓶", "unit": "瓶", "price": 115.0, "category": "原汁/鮮乳"}, {"sku": "QC005", "name": "紅心芭樂原汁", "spec": "900cc/瓶", "unit": "瓶", "price": 135.0, "category": "原汁/鮮乳"}, {"sku": "QC006", "name": "苦瓜原汁", "spec": "900cc/瓶", "unit": "瓶", "price": 250.0, "category": "原汁/鮮乳"}, {"sku": "QC007", "name": "統一鮮乳", "spec": "900cc/瓶", "unit": "瓶", "price": 64.0, "category": "原汁/鮮乳"}, {"sku": "QC008", "name": "安佳鮮奶油", "spec": "12罐/箱", "unit": "罐", "price": 100.0, "category": "原汁/鮮乳"}, {"sku": "QC009", "name": "長春桃鮮奶油", "spec": "12罐/箱", "unit": "罐", "price": 120.0, "category": "原汁/鮮乳"}, {"sku": "QC010", "name": "電子發票", "spec": "10捲/條, 10條/箱", "unit": "捲", "price": 16.8, "category": "包材"}, {"sku": "QC011", "name": "感熱貼紙", "spec": "10捲/條, 10條/箱", "unit": "捲", "price": 31.5, "category": "包材"}, {"sku": "QC012", "name": "檸檬", "spec": "35斤/箱", "unit": "箱", "price": 895.0, "category": "農產品"}, {"sku": "QC013", "name": "保冷袋", "spec": "50個/箱", "unit": "個", "price": 135.0, "category": "活動品"}, {"sku": "QC014", "name": "茶凍(1鍋3份)", "spec": "3份/鍋", "unit": "份", "price": 50.7, "category": "半成品"}, {"sku": "QC015", "name": "檸檬原汁", "spec": "壺", "unit": "壺", "price": 597.0, "category": "原汁/鮮乳"}, {"sku": "QC016", "name": "奶蓋(一壺2份)", "spec": "2份/壺", "unit": "份", "price": 193.0, "category": "半成品"}];
+
+const STORAGE_KEY = "dezheng_inventory_history";
+let currentStaff = "";
+let currentResults = {}; // { sku: {qty, note} }
+let categoryNotes = {}; // { 分類名稱: 備註文字 }，供新進品項尚未建檔時先暫時文字記錄
+let editingId = null; // 若正在修改某筆已存在的紀錄，記住它的 id 以便覆蓋而非新增
+let selectedHistoryIds = new Set(); // 歷史紀錄畫面目前勾選要刪除的紀錄 id
+
+// ── 畫面切換 ──────────────────────────
+function showScreen(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + name).classList.add('active');
+  if (name === 'history') renderHistory();
+}
+
+// ── 開始盤點 ──────────────────────────
+function startCount() {
+  const name = document.getElementById('staffName').value.trim();
+  if (!name) { alert('請輸入姓名'); return; }
+  currentStaff = name;
+  currentResults = {};
+  categoryNotes = {};
+  editingId = null;
+
+  document.getElementById('countSubtitle').textContent = `${STORE_NAME}　盤點人：${name}`;
+  renderItemList();
+  showScreen('count');
+}
+
+function renderItemList() {
+  const container = document.getElementById('itemList');
+  const categories = [];
+  const byCategory = {};
+  ITEMS.forEach(item => {
+    const cat = item.category || '未分類';
+    if (!byCategory[cat]) { byCategory[cat] = []; categories.push(cat); }
+    byCategory[cat].push(item);
+  });
+
+  let html = '';
+  categories.forEach(cat => {
+    const noteVal = escapeHtml(categoryNotes[cat] || '');
+    html += `
+      <div class="category-group collapsed">
+        <div class="item-category" onclick="toggleCategory(this)">
+          <span>${cat}</span>
+          <span class="arrow">▾</span>
+        </div>
+        <textarea class="category-note" placeholder="備註（例如：有新進品項尚未建檔，先文字記錄在這裡）"
+                   oninput="updateCategoryNote('${cat}', this.value)">${noteVal}</textarea>
+        <div class="category-items">`;
+    byCategory[cat].forEach(item => {
+      const r = currentResults[item.sku] || {};
+      const existingQty = r.qty !== undefined ? r.qty : '';
+      const existingLoose = r.loosePacks !== undefined ? r.loosePacks : '';
+      const existingLeftover = r.leftoverG !== undefined ? r.leftoverG : '';
+      const existingSub = r.subQty !== undefined ? r.subQty : '';
+      const existingPiece = r.pieceQty !== undefined ? r.pieceQty : '';
+      const isPacked = item.pack_weight_g && item.packs_per_unit;
+      const isSimpleWeight = !!item.unit_weight_g;
+      const isCountPacked3 = item.sub_unit && item.sub_per_unit && item.piece_unit && item.pieces_per_sub;
+      const isCountPacked2 = item.sub_unit && item.sub_per_unit && !item.piece_unit;
+
+      let extraHtml = '';
+      if (isPacked) {
+        extraHtml = `
+            <div class="field-label">整${item.unit}數量</div>
+            <div class="qty-row">
+              <button class="qty-btn" onclick="adjustQty('${item.sku}', -1)">−</button>
+              <input type="number" inputmode="decimal" step="1" min="0"
+                     id="qty-${item.sku}" placeholder="0" value="${existingQty}"
+                     oninput="updateQty('${item.sku}', this.value)">
+              <button class="qty-btn" onclick="adjustQty('${item.sku}', 1)">＋</button>
+            </div>
+            <div class="weight-extra">
+              <div class="weight-field">
+                <div class="field-label">散${item.sub_unit || '包'}數</div>
+                <input type="number" inputmode="decimal" step="1" min="0"
+                       id="loose-${item.sku}" placeholder="0" value="${existingLoose}"
+                       oninput="updateLoosePacks('${item.sku}', this.value)">
+              </div>
+              <div class="weight-field">
+                <div class="field-label">零散秤重（克）</div>
+                <input type="number" inputmode="decimal" step="1" min="0"
+                       id="leftover-${item.sku}" placeholder="0" value="${existingLeftover}"
+                       oninput="updateLeftoverG('${item.sku}', this.value)">
+              </div>
+            </div>`;
+      } else if (isSimpleWeight) {
+        extraHtml = `
+            <div class="field-label">整${item.unit}數量</div>
+            <div class="qty-row">
+              <button class="qty-btn" onclick="adjustQty('${item.sku}', -1)">−</button>
+              <input type="number" inputmode="decimal" step="1" min="0"
+                     id="qty-${item.sku}" placeholder="0" value="${existingQty}"
+                     oninput="updateQty('${item.sku}', this.value)">
+              <button class="qty-btn" onclick="adjustQty('${item.sku}', 1)">＋</button>
+            </div>
+            <div class="field-label">零散秤重（克）</div>
+            <div class="weight-extra">
+              <div class="weight-field">
+                <input type="number" inputmode="decimal" step="1" min="0"
+                       id="leftover-${item.sku}" placeholder="0" value="${existingLeftover}"
+                       oninput="updateLeftoverG('${item.sku}', this.value)">
+              </div>
+            </div>`;
+      } else if (isCountPacked3) {
+        extraHtml = `
+            <div class="field-label">整${item.unit}數量</div>
+            <div class="qty-row">
+              <button class="qty-btn" onclick="adjustQty('${item.sku}', -1)">−</button>
+              <input type="number" inputmode="decimal" step="1" min="0"
+                     id="qty-${item.sku}" placeholder="0" value="${existingQty}"
+                     oninput="updateQty('${item.sku}', this.value)">
+              <button class="qty-btn" onclick="adjustQty('${item.sku}', 1)">＋</button>
+            </div>
+            <div class="weight-extra">
+              <div class="weight-field">
+                <div class="field-label">散${item.sub_unit}數</div>
+                <input type="number" inputmode="decimal" step="1" min="0"
+                       id="sub-${item.sku}" placeholder="0" value="${existingSub}"
+                       oninput="updateSubQty('${item.sku}', this.value)">
+              </div>
+              <div class="weight-field">
+                <div class="field-label">散${item.piece_unit}數</div>
+                <input type="number" inputmode="decimal" step="1" min="0"
+                       id="piece-${item.sku}" placeholder="0" value="${existingPiece}"
+                       oninput="updatePieceQty('${item.sku}', this.value)">
+              </div>
+            </div>`;
+      } else if (isCountPacked2) {
+        extraHtml = `
+            <div class="field-label">整${item.unit}數量</div>
+            <div class="qty-row">
+              <button class="qty-btn" onclick="adjustQty('${item.sku}', -1)">−</button>
+              <input type="number" inputmode="decimal" step="1" min="0"
+                     id="qty-${item.sku}" placeholder="0" value="${existingQty}"
+                     oninput="updateQty('${item.sku}', this.value)">
+              <button class="qty-btn" onclick="adjustQty('${item.sku}', 1)">＋</button>
+            </div>
+            <div class="field-label">散${item.sub_unit}數</div>
+            <div class="weight-extra">
+              <div class="weight-field">
+                <input type="number" inputmode="decimal" step="1" min="0"
+                       id="sub-${item.sku}" placeholder="0" value="${existingSub}"
+                       oninput="updateSubQty('${item.sku}', this.value)">
+              </div>
+            </div>`;
+      } else {
+        extraHtml = `
+            <div class="qty-row">
+              <button class="qty-btn" onclick="adjustQty('${item.sku}', -1)">−</button>
+              <input type="number" inputmode="decimal" step="0.1" min="0"
+                     id="qty-${item.sku}" placeholder="0" value="${existingQty}"
+                     oninput="updateQty('${item.sku}', this.value)">
+              <button class="qty-btn" onclick="adjustQty('${item.sku}', 1)">＋</button>
+            </div>`;
+      }
+
+      html += `
+          <div class="item-row" id="item-row-${item.sku}">
+            <div class="item-name">${item.name}</div>
+            <div class="item-meta">${item.spec || ''}${item.spec ? '　' : ''}單位：${item.unit}</div>
+            ${extraHtml}
+          </div>`;
+    });
+    html += `
+        </div>
+      </div>`;
+  });
+  container.innerHTML = html;
+}
+
+function toggleCategory(headerEl) {
+  headerEl.parentElement.classList.toggle('collapsed');
+}
+
+// ── 品項搜尋（盤點中畫面），輸入名稱/編號後可點選結果直接跳到該品項 ──
+function onItemSearchInput(val) {
+  const resultsEl = document.getElementById('itemSearchResults');
+  const q = val.trim().toLowerCase();
+  if (!q) { resultsEl.style.display = 'none'; resultsEl.innerHTML = ''; return; }
+
+  const matches = ITEMS.filter(item =>
+    item.name.toLowerCase().includes(q) || item.sku.toLowerCase().includes(q)
+  ).slice(0, 20);
+
+  resultsEl.innerHTML = matches.length ? matches.map(item => `
+      <div class="search-result-item" onmousedown="jumpToItem('${item.sku}')">
+        <div class="search-result-name">${escapeHtml(item.name)}</div>
+        <div class="search-result-meta">${escapeHtml(item.category || '')}${item.spec ? '　' + escapeHtml(item.spec) : ''}</div>
+      </div>`).join('')
+    : `<div class="search-empty">找不到符合的品項</div>`;
+  resultsEl.style.display = 'block';
+}
+
+function hideItemSearchResults() {
+  document.getElementById('itemSearchResults').style.display = 'none';
+}
+
+function jumpToItem(sku) {
+  const row = document.getElementById('item-row-' + sku);
+  if (!row) return;
+
+  const group = row.closest('.category-group');
+  if (group) group.classList.remove('collapsed');
+
+  document.getElementById('itemSearchInput').value = '';
+  hideItemSearchResults();
+  document.getElementById('itemSearchInput').blur();
+
+  row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  row.classList.remove('highlight');
+  void row.offsetWidth; // 重新觸發動畫
+  row.classList.add('highlight');
+}
+
+function updateField(sku, field, val) {
+  const num = parseFloat(val);
+  const r = currentResults[sku] || {};
+  if (!isNaN(num) && num >= 0) {
+    r[field] = num;
+  } else {
+    delete r[field];
+  }
+  if (Object.keys(r).length > 0) {
+    currentResults[sku] = r;
+  } else {
+    delete currentResults[sku];
+  }
+  updateProgress();
+}
+
+function updateQty(sku, val) { updateField(sku, 'qty', val); }
+function updateLoosePacks(sku, val) { updateField(sku, 'loosePacks', val); }
+function updateLeftoverG(sku, val) { updateField(sku, 'leftoverG', val); }
+function updateSubQty(sku, val) { updateField(sku, 'subQty', val); }
+function updatePieceQty(sku, val) { updateField(sku, 'pieceQty', val); }
+
+function updateCategoryNote(cat, val) {
+  categoryNotes[cat] = val;
+}
+
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"']/g, ch => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[ch]));
+}
+
+function adjustQty(sku, delta) {
+  const input = document.getElementById('qty-' + sku);
+  let val = parseFloat(input.value) || 0;
+  val = Math.max(0, val + delta);
+  input.value = val;
+  updateQty(sku, val);
+}
+
+function updateProgress() {
+  const filled = Object.keys(currentResults).length;
+  const pct = Math.round((filled / ITEMS.length) * 100);
+  document.getElementById('progressFill').style.width = pct + '%';
+}
+
+// 依品項的秤重設定，把「整包/整箱數量＋散包數＋零散克數」換算成用來計價的總數量，
+// 並組出讓人看得懂算法來源的文字說明（例如「2箱 + 3包 + 400g（換算 2.17 箱）」）
+function buildRecordItem(item, r) {
+  const rawQty = r.qty || 0;
+  let convertedQty = rawQty;
+  let qtyLabel = `${rawQty} ${item.unit}`;
+
+  if (item.pack_weight_g && item.packs_per_unit) {
+    const loosePacks = r.loosePacks || 0;
+    const leftoverG = r.leftoverG || 0;
+    convertedQty = rawQty + (loosePacks + leftoverG / item.pack_weight_g) / item.packs_per_unit;
+    if (loosePacks > 0 || leftoverG > 0) {
+      const parts = [`${rawQty}${item.unit}`];
+      if (loosePacks > 0) parts.push(`${loosePacks}${item.sub_unit || '包'}`);
+      if (leftoverG > 0) parts.push(`${leftoverG}g`);
+      qtyLabel = `${parts.join(' + ')}（換算 ${convertedQty.toFixed(2)} ${item.unit}）`;
+    }
+  } else if (item.unit_weight_g) {
+    const leftoverG = r.leftoverG || 0;
+    convertedQty = rawQty + leftoverG / item.unit_weight_g;
+    if (leftoverG > 0) {
+      qtyLabel = `${rawQty}${item.unit} + ${leftoverG}g（換算 ${convertedQty.toFixed(2)} ${item.unit}）`;
+    }
+  } else if (item.sub_unit && item.sub_per_unit && item.piece_unit && item.pieces_per_sub) {
+    const subQty = r.subQty || 0;
+    const pieceQty = r.pieceQty || 0;
+    convertedQty = rawQty + (subQty + pieceQty / item.pieces_per_sub) / item.sub_per_unit;
+    if (subQty > 0 || pieceQty > 0) {
+      const parts = [`${rawQty}${item.unit}`];
+      if (subQty > 0) parts.push(`${subQty}${item.sub_unit}`);
+      if (pieceQty > 0) parts.push(`${pieceQty}${item.piece_unit}`);
+      qtyLabel = `${parts.join(' + ')}（換算 ${convertedQty.toFixed(2)} ${item.unit}）`;
+    }
+  } else if (item.sub_unit && item.sub_per_unit) {
+    const subQty = r.subQty || 0;
+    convertedQty = rawQty + subQty / item.sub_per_unit;
+    if (subQty > 0) {
+      qtyLabel = `${rawQty}${item.unit} + ${subQty}${item.sub_unit}（換算 ${convertedQty.toFixed(2)} ${item.unit}）`;
+    }
+  }
+
+  return {
+    sku: item.sku, name: item.name, spec: item.spec, unit: item.unit, price: item.price,
+    qty: Math.round(convertedQty * 100) / 100,
+    qtyLabel,
+    amount: Math.round(item.price * convertedQty),
+    rawQty,
+    loosePacks: r.loosePacks,
+    subQty: r.subQty,
+    pieceQty: r.pieceQty,
+    leftoverG: r.leftoverG
+  };
+}
+
+// ── 完成盤點 ──────────────────────────
+function finishCount() {
+  const filledCount = Object.keys(currentResults).length;
+  if (filledCount === 0) {
+    if (!confirm('目前沒有填寫任何數量，確定要送出空白盤點嗎？')) return;
+  }
+
+  const notes = {};
+  Object.keys(categoryNotes).forEach(cat => {
+    const v = (categoryNotes[cat] || '').trim();
+    if (v) notes[cat] = v;
+  });
+
+  const record = {
+    id: editingId || Date.now(),
+    store: STORE_NAME,
+    staff: currentStaff,
+    datetime: new Date().toISOString(),
+    items: ITEMS.filter(i => currentResults[i.sku] !== undefined)
+      .map(i => buildRecordItem(i, currentResults[i.sku])),
+    categoryNotes: notes
+  };
+
+  saveRecord(record);
+  editingId = record.id;
+  showDoneScreen(record);
+}
+
+// ── 返回修改 ──────────────────────────
+function backToEdit() {
+  const record = window._lastRecord;
+  if (!record) return;
+
+  currentStaff = record.staff;
+  currentResults = {};
+  categoryNotes = Object.assign({}, record.categoryNotes);
+  record.items.forEach(i => {
+    const entry = { qty: i.rawQty !== undefined ? i.rawQty : i.qty };
+    if (i.loosePacks !== undefined) entry.loosePacks = i.loosePacks;
+    if (i.leftoverG !== undefined) entry.leftoverG = i.leftoverG;
+    if (i.subQty !== undefined) entry.subQty = i.subQty;
+    if (i.pieceQty !== undefined) entry.pieceQty = i.pieceQty;
+    currentResults[i.sku] = entry;
+  });
+  editingId = record.id;
+
+  document.getElementById('countSubtitle').textContent = `${record.store}　盤點人：${record.staff}`;
+  renderItemList();
+  updateProgress();
+  showScreen('count');
+}
+
+function showDoneScreen(record) {
+  document.getElementById('doneSummary').textContent =
+    `單號 ${getRecordNo(record)}　${record.store}　${record.staff}　${formatDate(record.datetime)}`;
+
+  let html = '<tr><th>品項</th><th class="num">數量</th></tr>';
+  record.items.forEach(i => {
+    const label = i.qtyLabel || `${i.qty} ${i.unit}`;
+    html += `<tr><td>${i.name}</td><td class="num">${label}</td></tr>`;
+  });
+  document.getElementById('doneTable').innerHTML = html;
+
+  const notes = record.categoryNotes || {};
+  const notesCard = document.getElementById('doneNotesCard');
+  const noteCats = Object.keys(notes);
+  if (noteCats.length > 0) {
+    document.getElementById('doneNotes').innerHTML = noteCats
+      .map(cat => `<div class="category-note-item"><b>${escapeHtml(cat)}：</b>${escapeHtml(notes[cat])}</div>`)
+      .join('');
+    notesCard.style.display = '';
+  } else {
+    notesCard.style.display = 'none';
+  }
+
+  window._lastRecord = record;
+  showScreen('done');
+}
+
+// ── 本機儲存 ──────────────────────────
+function saveRecord(record) {
+  const history = getHistory();
+  const idx = history.findIndex(r => r.id === record.id);
+  if (idx !== -1) {
+    history[idx] = record;
+  } else {
+    history.unshift(record);
+  }
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
+}
+
+function getHistory() {
+  return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+}
+
+function renderHistory() {
+  selectedHistoryIds = new Set();
+  const history = getHistory();
+  const container = document.getElementById('historyList');
+  const deleteBtn = document.getElementById('deleteSelectedBtn');
+
+  if (history.length === 0) {
+    container.innerHTML = '<div class="empty-state">還沒有盤點紀錄</div>';
+    deleteBtn.style.display = 'none';
+    return;
+  }
+
+  deleteBtn.style.display = '';
+  let html = '';
+  history.forEach(r => {
+    html += `
+      <div class="history-item">
+        <input type="checkbox" onchange="toggleSelectHistory(${r.id}, this.checked)">
+        <div class="history-item-main" onclick='reopenRecord(${r.id})'>
+          <div>
+            <div class="name">${r.staff}</div>
+            <div class="date">單號 ${getRecordNo(r)}　${formatDate(r.datetime)}　${r.items.length} 項</div>
+          </div>
+          <div>›</div>
+        </div>
+      </div>`;
+  });
+  container.innerHTML = html;
+  updateDeleteButton();
+}
+
+function toggleSelectHistory(id, checked) {
+  if (checked) selectedHistoryIds.add(id);
+  else selectedHistoryIds.delete(id);
+  updateDeleteButton();
+}
+
+function updateDeleteButton() {
+  const btn = document.getElementById('deleteSelectedBtn');
+  const n = selectedHistoryIds.size;
+  btn.disabled = n === 0;
+  btn.textContent = n > 0 ? `🗑 刪除已選取（${n}）` : '🗑 刪除已選取';
+}
+
+function deleteSelectedHistory() {
+  if (selectedHistoryIds.size === 0) return;
+  if (!confirm(`確定要刪除選取的 ${selectedHistoryIds.size} 筆紀錄嗎？刪除後無法復原。`)) return;
+  const remaining = getHistory().filter(r => !selectedHistoryIds.has(r.id));
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(remaining));
+  renderHistory();
+}
+
+function reopenRecord(id) {
+  const history = getHistory();
+  const record = history.find(r => r.id === id);
+  if (record) showDoneScreen(record);
+}
+
+function formatDate(iso) {
+  const d = new Date(iso);
+  return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+
+// 單據編號直接由紀錄的 id（建立時的時間戳）換算，同一筆紀錄修改後編號不變，方便跟 Excel 對照
+function getRecordNo(record) {
+  const d = new Date(record.id);
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+}
+
+// ── 匯出 Excel ────────────────────────
+function buildWorkbook(record) {
+  const total = record.items.reduce((s, i) => s + i.amount, 0);
+  const rows = [
+    ['單據編號', getRecordNo(record)],
+    ['盤點門市', record.store],
+    ['盤點人', record.staff],
+    ['盤點時間', formatDate(record.datetime)],
+    [],
+    ['品號', '品名', '規格', '單位', '單價', '盤點數量', '數量明細', '盤點金額'],
+  ];
+  record.items.forEach(i => {
+    rows.push([i.sku, i.name, i.spec, i.unit, i.price, i.qty, i.qtyLabel || '', i.amount]);
+  });
+  rows.push(['', '', '', '', '', '', '合計', total]);
+
+  const noteCats = Object.keys(record.categoryNotes || {});
+  if (noteCats.length > 0) {
+    rows.push([]);
+    rows.push(['大類備註']);
+    noteCats.forEach(cat => rows.push([cat, record.categoryNotes[cat]]));
+  }
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [{wch:10},{wch:22},{wch:18},{wch:6},{wch:8},{wch:10},{wch:26},{wch:10}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "盤點結果");
+  return wb;
+}
+
+const EXCEL_ZIP_PASSWORD = '1229'; // 匯出的 Excel 一律包成有密碼的 zip，防止店員直接看到金額
+
+function getFileName(record) {
+  const d = new Date(record.datetime);
+  const dateStr = `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
+  return `${record.store}_盤點_${dateStr}_${record.staff}.xlsx`;
+}
+
+function getZipFileName(record) {
+  return getFileName(record).replace(/\.xlsx$/, '.zip');
+}
+
+// 把 Excel 包成有密碼的 zip（用相容性較好的傳統 ZipCrypto，多數手機/電腦內建解壓縮都打得開）
+async function buildProtectedZip(record) {
+  const wb = buildWorkbook(record);
+  const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+  const xlsxBlob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+
+  const zipWriter = new zip.ZipWriter(new zip.BlobWriter('application/zip'), {
+    password: EXCEL_ZIP_PASSWORD,
+    zipCrypto: true
+  });
+  await zipWriter.add(getFileName(record), new zip.BlobReader(xlsxBlob));
+  return zipWriter.close();
+}
+
+async function downloadExcel() {
+  const record = window._lastRecord;
+  let zipBlob;
+  try {
+    zipBlob = await buildProtectedZip(record);
+  } catch (err) {
+    alert('產生加密檔案失敗，請檢查網路連線後再試一次');
+    return;
+  }
+  const url = URL.createObjectURL(zipBlob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = getZipFileName(record);
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+async function shareExcel() {
+  const record = window._lastRecord;
+  let zipBlob;
+  try {
+    zipBlob = await buildProtectedZip(record);
+  } catch (err) {
+    alert('產生加密檔案失敗，請檢查網路連線後再試一次');
+    return;
+  }
+  const zipName = getZipFileName(record);
+  const file = new File([zipBlob], zipName, { type: 'application/zip' });
+
+  // 優先用手機原生分享（可直接選 LINE）
+  if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({
+        files: [file],
+        title: zipName,
+        text: `${record.store} 盤點結果 - ${record.staff}`
+      });
+      return;
+    } catch (err) {
+      // 使用者取消分享，不用特別處理
+      if (err.name === 'AbortError') return;
+    }
+  }
+  // 不支援原生分享的話（例如電腦瀏覽器測試），退回直接下載
+  alert('這個瀏覽器不支援直接分享，改為下載檔案，請自行用 LINE 傳送附件');
+  downloadExcel();
+}
+</script>
+</body>
+</html>
