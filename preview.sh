@@ -3,7 +3,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-PORT=8000
+PORT=8001
 
 IP="$(ipconfig getifaddr en0 2>/dev/null || true)"
 if [ -z "$IP" ]; then
