@@ -10,9 +10,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 There is no build, lint, or test tooling in this repo. To work on the app:
 
-- Run `./preview.sh` to start a local server (`python3 -m http.server 8000`) in the project root. It prints two URLs:
-  - `http://localhost:8000` — preview on the Mac.
-  - `http://<lan-ip>:8000` — preview on a phone connected to the **same Wi-Fi**, where `<lan-ip>` is auto-detected via `ipconfig getifaddr en0` (falls back to `en1`).
+- Run `./preview.sh` to start a local server (`python3 -m http.server 8001`) in the project root. It prints two URLs:
+  - `http://localhost:8001` — preview on the Mac.
+  - `http://<lan-ip>:8001` — preview on a phone connected to the **same Wi-Fi**, where `<lan-ip>` is auto-detected via `ipconfig getifaddr en0` (falls back to `en1`).
 - A local server (rather than opening the file directly) is needed for `navigator.share` and other browser APIs to behave like production on mobile.
 - Test on an actual mobile browser (iOS Safari / Android Chrome) when touching the share/export flow, since `navigator.share`/`canShare` with files only works on mobile and falls back to plain download on desktop.
 - There is no automated test suite; verify changes manually by walking through the four screens (start → count → done → history).
@@ -27,7 +27,11 @@ Everything lives in `index.html`: inline `<style>`, inline `<body>` markup, inli
 3. `done` — read-only summary table of the submitted count with total value, plus export/share actions.
 4. `history` — list of past local records; tapping one reopens it on the `done` screen.
 
-**Item master data**: the `ITEMS` array (top of the `<script>` block) is the full product catalog — sku, name, spec, unit, price, category — hardcoded inline as JSON. This was generated from a `得正_盤點品項主檔.xlsx` source file's `品項主檔` sheet. Unlike some sibling projects, none of these items carry the optional packaging fields (`unit_weight_g`, `pack_weight_g`, `packs_per_unit`, `sub_unit`, `piece_unit`, `pieces_per_sub`) — the source spec text isn't consistent enough to derive them reliably (e.g. unit mismatches between 規格 and 單位 columns), so every item renders as a single numeric quantity input. **To update the catalog (add/remove/reprice items), edit this array directly** — there is no separate data file or import pipeline. If a future source file has clean, consistent packaging data, those optional fields can be added per-item to enable the loose-pack/leftover-weight entry UI (see `renderItemList` for the branching logic).
+**Item master data**: `ITEMS` (the catalog — sku, name, spec, unit, price, category) is **not hardcoded** — it's fetched at page load from a Google Apps Script Web App (`ITEMS_API_URL`) that reads a Google Sheet ("得正_盤點品項主檔") and returns its rows as JSON. This keeps price data out of the public GitHub repo (the original motivation for the switch). `loadItems()` fetches with an 8s timeout; on success it populates `ITEMS` and writes a copy to `localStorage` (`dezheng_items_cache`); on failure it falls back to that cache (`{ok:false, usedCache:true}`) or, if there's no cache either, leaves `ITEMS` empty (`{ok:false, usedCache:false}`). `startCount()` awaits the in-flight `itemsReadyPromise` before rendering, showing a loading placeholder in `#itemList` meanwhile, and drives a small connection-status dot (`#connStatusDot`, classes `status-dot checking|online|offline|error`) next to the "盤點中" heading so staff can see at a glance whether prices are live or stale. **To edit the catalog itself (reprice/add/rename items), edit the Google Sheet directly** — no code change or redeploy needed, it takes effect on next page load.
+
+Sheet rows with a purely numeric `sku` (e.g. `101001`) come back from Apps Script as JS numbers, not strings, while alphanumeric skus (`BA013`, `QC001`) come back as strings — this is a real gotcha, not a hypothetical: it broke the item search (`String(item.sku).toLowerCase()` is required at the filter in `onItemSearchInput`) until fixed. Any new code that touches `item.sku` as a string should account for this.
+
+**Packaging fields for split-quantity entry**: unlike the catalog fields above, the optional packaging fields (`unit_weight_g`, `pack_weight_g`, `packs_per_unit`, `sub_unit`, `piece_unit`, `pieces_per_sub` — see `renderItemList`'s branching logic for what each combination renders) are **hardcoded in the `PACKAGING` object** near the top of the `<script>` block, keyed by sku, and merged onto whatever the API returns via `applyPackaging()` (called from `loadItems()` for both the live-fetch and cache-fallback paths). These fields deliberately stay in code rather than the Sheet: they aren't sensitive like price, and they almost never change once set, so keeping them here avoids needing new Sheet columns for every packaging shape. Most items have no entry in `PACKAGING` and render as a single plain quantity input.
 
 **State & persistence**:
 - `currentResults` (in-memory, `{ sku: {qty} }`) holds the in-progress count.
