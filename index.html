@@ -427,14 +427,7 @@ async function startCount() {
     setConnStatus('error', '連線失敗，且沒有離線快取資料');
     return;
   }
-  if (result.ok) {
-    setConnStatus('online', '連線正常，已取得最新品項/單價');
-  } else if (result.usedCache) {
-    const warningEl = document.getElementById('itemsWarning');
-    warningEl.textContent = '⚠️ 目前無法連線取得最新品項/單價，使用的是上次成功載入的離線快取資料';
-    warningEl.style.display = '';
-    setConnStatus('offline', '連線失敗，使用離線快取資料');
-  }
+  applyConnStatus(result);
 
   renderItemList();
   updateProgress();
@@ -444,6 +437,21 @@ function setConnStatus(state, label) {
   const dot = document.getElementById('connStatusDot');
   dot.className = 'status-dot ' + state;
   dot.title = label;
+}
+
+// 依 loadItems() 的結果更新連線燈號跟離線快取提示，startCount()/backToEdit() 共用
+function applyConnStatus(result) {
+  const warningEl = document.getElementById('itemsWarning');
+  if (result.ok) {
+    warningEl.style.display = 'none';
+    setConnStatus('online', '連線正常，已取得最新品項/單價');
+  } else if (result.usedCache) {
+    warningEl.textContent = '⚠️ 目前無法連線取得最新品項/單價，使用的是上次成功載入的離線快取資料';
+    warningEl.style.display = '';
+    setConnStatus('offline', '連線失敗，使用離線快取資料');
+  } else {
+    setConnStatus('error', '連線失敗，且沒有離線快取資料');
+  }
 }
 
 function renderItemList() {
@@ -763,7 +771,7 @@ function finishCount() {
 }
 
 // ── 返回修改 ──────────────────────────
-function backToEdit() {
+async function backToEdit() {
   const record = window._lastRecord;
   if (!record) return;
 
@@ -781,9 +789,10 @@ function backToEdit() {
   editingId = record.id;
 
   document.getElementById('countSubtitle').textContent = `${record.store}　盤點人：${record.staff}`;
+  showScreen('count');
+  applyConnStatus(await itemsReadyPromise);
   renderItemList();
   updateProgress();
-  showScreen('count');
 }
 
 function showDoneScreen(record) {
