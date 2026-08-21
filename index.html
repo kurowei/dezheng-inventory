@@ -31,6 +31,16 @@
     animation: spin 0.8s linear infinite;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
+  .status-dot {
+    width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+    background: #94a3b8;
+    transition: background-color 0.2s;
+  }
+  .status-dot.checking { animation: statusPulse 1s ease-in-out infinite; }
+  .status-dot.online { background: #16a34a; animation: none; }
+  .status-dot.offline { background: #f59e0b; animation: none; }
+  .status-dot.error { background: #dc2626; animation: none; }
+  @keyframes statusPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
   .screen { display: none; }
   .screen.active { display: block; }
 
@@ -225,7 +235,7 @@
   <!-- ══════════ 畫面二：盤點中 ══════════ -->
   <div id="screen-count" class="screen">
     <div class="heading-center">
-      <h1><span class="spinner"></span>盤點中</h1>
+      <h1><span class="status-dot checking" id="connStatusDot" title="連線狀態檢查中"></span>盤點中</h1>
       <div class="subtitle" id="countSubtitle"></div>
     </div>
     <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
@@ -404,21 +414,32 @@ async function startCount() {
   showScreen('count');
   document.getElementById('itemsWarning').style.display = 'none';
   document.getElementById('itemList').innerHTML = '<div class="loading-state"><span class="spinner"></span>品項載入中，請稍候…</div>';
+  setConnStatus('checking', '連線狀態檢查中');
 
   const result = await itemsReadyPromise;
 
   if (ITEMS.length === 0) {
     document.getElementById('itemList').innerHTML = '<div class="loading-state">⚠️ 無法載入品項資料，請確認網路連線後重新整理頁面再試一次</div>';
+    setConnStatus('error', '連線失敗，且沒有離線快取資料');
     return;
   }
-  if (!result.ok && result.usedCache) {
+  if (result.ok) {
+    setConnStatus('online', '連線正常，已取得最新品項/單價');
+  } else if (result.usedCache) {
     const warningEl = document.getElementById('itemsWarning');
     warningEl.textContent = '⚠️ 目前無法連線取得最新品項/單價，使用的是上次成功載入的離線快取資料';
     warningEl.style.display = '';
+    setConnStatus('offline', '連線失敗，使用離線快取資料');
   }
 
   renderItemList();
   updateProgress();
+}
+
+function setConnStatus(state, label) {
+  const dot = document.getElementById('connStatusDot');
+  dot.className = 'status-dot ' + state;
+  dot.title = label;
 }
 
 function renderItemList() {
