@@ -402,6 +402,7 @@ function showScreen(name) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById('screen-' + name).classList.add('active');
   if (name === 'history') renderHistory();
+  if (name === 'start') document.getElementById('staffName').value = '';
 }
 
 // ── 開始盤點 ──────────────────────────
