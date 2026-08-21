@@ -73,8 +73,9 @@
     color: white;
     cursor: pointer;
     margin-top: 10px;
+    transition: transform 0.08s ease, background 0.15s ease;
   }
-  button:active { background: #1d4ed8; }
+  button:active { background: #1d4ed8; transform: scale(0.94); }
   button.secondary { background: #64748b; }
   button.secondary:active { background: #475569; }
   button.success { background: #16a34a; }
@@ -82,6 +83,7 @@
   button.danger { background: #dc2626; }
   button.danger:active { background: #b91c1c; }
   button:disabled { background: #cbd5e1; }
+  button:disabled:active { transform: none; }
 
   .item-category {
     font-size: 17px;
