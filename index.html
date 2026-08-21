@@ -290,6 +290,68 @@
 const STORE_NAME = "得正";
 const ITEMS_API_URL = "https://script.google.com/macros/s/AKfycbw7IqDXkGmXRbnLDC6Fd8tOg5IYQMrYgT0TRTxEB1rO_H6DnhW5lG_DN2aMJZHjlVVT/exec";
 const ITEMS_CACHE_KEY = "dezheng_items_cache";
+
+// 包裝規格（拆分輸入用）：不敏感、也很少變動，直接寫死在這裡管理，
+// 不用像單價一樣透過 Google Sheets API 動態取得。要新增/調整包裝規格直接改這裡。
+const PACKAGING = {
+  // 茶葉/茶乾 — 整包秤重
+  '101001': { unit_weight_g: 600 },
+  '101002': { unit_weight_g: 600 },
+  '101003': { unit_weight_g: 600 },
+  '101005': { unit_weight_g: 600 },
+  '101006': { unit_weight_g: 600 },
+  '101013': { unit_weight_g: 600 },
+  // 原汁/鮮乳 — 整瓶秤重
+  'QC001': { unit_weight_g: 900 },
+  'QC002': { unit_weight_g: 900 },
+  'QC003': { unit_weight_g: 900 },
+  'QC004': { unit_weight_g: 900 },
+  'QC005': { unit_weight_g: 900 },
+  'QC006': { unit_weight_g: 950 },
+  'QC007': { unit_weight_g: 900 },
+  'QC015': { unit_weight_g: 1200 },
+  'QC016': { unit_weight_g: 4000 },
+  // 原汁/鮮乳 — 三層計數（箱→罐→杯）
+  'QC018': { sub_unit: '罐', sub_per_unit: 6, piece_unit: '杯', pieces_per_sub: 57 },
+  // 糖漿/粉類/凍粉
+  '104001': { pack_weight_g: 907.4, packs_per_unit: 12, sub_unit: '包' },
+  '104002': { unit_weight_g: 1800 },
+  '104003': { pack_weight_g: 126, packs_per_unit: 60, sub_unit: '包' },
+  '105002': { unit_weight_g: 1000 },
+  '105003': { pack_weight_g: 3000, packs_per_unit: 4, sub_unit: '罐' },
+  '105004': { pack_weight_g: 6000, packs_per_unit: 4, sub_unit: '罐' },
+  '105005': { unit_weight_g: 5000 },
+  '105007': { unit_weight_g: 25000 },
+  '105017': { unit_weight_g: 300 },
+  // 包材 — 純計數
+  '201001': { sub_unit: '個', sub_per_unit: 1000 },
+  '201002': { sub_unit: '個', sub_per_unit: 1000 },
+  '201005': { sub_unit: '個', sub_per_unit: 1000 },
+  '201006': { sub_unit: '個', sub_per_unit: 2000 },
+  '203002': { sub_unit: '個', sub_per_unit: 1000 },
+  '203003': { sub_unit: '個', sub_per_unit: 1000 },
+  '203009': { sub_unit: '捲', sub_per_unit: 6 },
+  '203016': { sub_unit: '捲', sub_per_unit: 190 },
+  '203019': { sub_unit: '個', sub_per_unit: 2000 },
+  // 包材 — 秤重
+  '202015': { unit_weight_g: 5000 },
+  '202016': { unit_weight_g: 5000 },
+  '203010': { unit_weight_g: 15000 },
+  '203011': { unit_weight_g: 15000 },
+  '203012': { unit_weight_g: 15000 },
+  '203021': { unit_weight_g: 15000 },
+  // 配料
+  'BA013': { pack_weight_g: 3000, packs_per_unit: 6, sub_unit: '包' },
+  'BA015': { pack_weight_g: 3000, packs_per_unit: 6, sub_unit: '包' },
+};
+
+function applyPackaging(items) {
+  return items.map(item => {
+    const pkg = PACKAGING[item.sku];
+    return pkg ? Object.assign({}, item, pkg) : item;
+  });
+}
+
 let ITEMS = [];
 let itemsReadyPromise = loadItems(); // 頁面一載入就先打 API，跟使用者輸入姓名同時進行
 
@@ -302,13 +364,13 @@ async function loadItems() {
     if (!res.ok) throw new Error('bad status ' + res.status);
     const data = await res.json();
     if (!Array.isArray(data) || data.length === 0) throw new Error('empty data');
-    ITEMS = data;
+    ITEMS = applyPackaging(data);
     localStorage.setItem(ITEMS_CACHE_KEY, JSON.stringify(data));
     return { ok: true };
   } catch (err) {
     const cached = localStorage.getItem(ITEMS_CACHE_KEY);
     if (cached) {
-      ITEMS = JSON.parse(cached);
+      ITEMS = applyPackaging(JSON.parse(cached));
       return { ok: false, usedCache: true };
     }
     return { ok: false, usedCache: false };
