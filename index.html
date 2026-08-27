@@ -369,6 +369,36 @@ function applyPackaging(items) {
   });
 }
 
+// 各分類內，同種類品項要排在一起顯示的順序（依 sku）。品項不在清單裡就維持原本
+// Sheet 順序，跟清單裡的項目穿插的相對順序也不會被打亂（穩定排序）。新增品項時
+// 如果想跟同種類的排一起，把 sku 加進對應分類的陣列即可，不用整理 Google Sheets。
+const CATEGORY_SORT_ORDER = {
+  '包材': [
+    '201001', '201002', '201005', '201006', // 紙杯/紙杯套/杯蓋
+    '202015', '202016', // 吸管
+    '203002', '203003', '203019', // 杯架（四格/六格/二格）
+    '203009', '203016', // 封口膜/膠帶
+    '203010', '203011', '203012', '203021', // 杯袋（新1/4/6/2）
+    'QC010', 'QC011', // 發票/貼紙
+  ],
+  '原汁/鮮乳': [
+    'QC001', 'QC002', 'QC003', 'QC004', 'QC005', 'QC006', 'QC015', 'QC016', // 原汁類
+    'QC007', 'QC008', 'QC009', // 鮮乳/鮮奶油
+    'QC018', // 蘋果醬
+  ],
+};
+
+function sortItemsByCategory(items, cat) {
+  const order = CATEGORY_SORT_ORDER[cat];
+  if (!order) return items;
+  const rank = new Map(order.map((sku, i) => [String(sku), i]));
+  return items.slice().sort((a, b) => {
+    const ra = rank.has(String(a.sku)) ? rank.get(String(a.sku)) : Infinity;
+    const rb = rank.has(String(b.sku)) ? rank.get(String(b.sku)) : Infinity;
+    return ra - rb;
+  });
+}
+
 let ITEMS = [];
 let itemsReadyPromise = loadItems(); // 頁面一載入就先打 API，跟使用者輸入姓名同時進行
 
@@ -467,6 +497,7 @@ function renderItemList() {
     if (!byCategory[cat]) { byCategory[cat] = []; categories.push(cat); }
     byCategory[cat].push(item);
   });
+  categories.forEach(cat => { byCategory[cat] = sortItemsByCategory(byCategory[cat], cat); });
 
   let html = '';
   categories.forEach(cat => {
