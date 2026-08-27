@@ -300,7 +300,9 @@
 // 避免單價資料出現在 GitHub repo 裡）。要更新品項/單價請改 Google Sheets。
 // ══════════════════════════════════════════════
 const STORE_NAME = "得正";
-const ITEMS_API_URL = "https://script.google.com/macros/s/AKfycbw7IqDXkGmXRbnLDC6Fd8tOg5IYQMrYgT0TRTxEB1rO_H6DnhW5lG_DN2aMJZHjlVVT/exec";
+// 網址用 base64 編碼避免直接看原始碼就看到明文（僅防隨手瀏覽，非真正加密：
+// 瀏覽器開發者工具的 Network 分頁一定看得到實際送出的明文網址）
+const ITEMS_API_URL = atob("aHR0cHM6Ly9zY3JpcHQuZ29vZ2xlLmNvbS9tYWNyb3Mvcy9BS2Z5Y2J3N0lxRFhrR21YUmJuTERDNkZkOHRPZzVJWVFNcllnVDBUUlR4RUIxck9fSDZEbmhXNWxHX0ROMmFNSlpIamxWVlQvZXhlYw==");
 const ITEMS_CACHE_KEY = "dezheng_items_cache";
 
 // 包裝規格（拆分輸入用）：不敏感、也很少變動，直接寫死在這裡管理，
