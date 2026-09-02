@@ -348,13 +348,13 @@ const PACKAGING = {
   '203009': { sub_unit: '捲', sub_per_unit: 6 },
   '203016': { sub_unit: '袋', sub_per_unit: 19, piece_unit: '卷', pieces_per_sub: 10 },
   '203019': { sub_unit: '袋', sub_per_unit: 100, piece_unit: '個', pieces_per_sub: 20 },
-  // 包材 — 秤重
-  '202015': { unit_weight_g: 5000 },
-  '202016': { unit_weight_g: 5000 },
-  '203010': { unit_weight_g: 15000 },
-  '203011': { unit_weight_g: 15000 },
-  '203012': { unit_weight_g: 15000 },
-  '203021': { unit_weight_g: 15000 },
+  // 包材 — 整箱有多包，每包固定重量
+  '202015': { pack_weight_g: 250, packs_per_unit: 20, sub_unit: '包' },
+  '202016': { pack_weight_g: 250, packs_per_unit: 20, sub_unit: '包' },
+  '203010': { pack_weight_g: 1000, packs_per_unit: 15, sub_unit: '包' },
+  '203011': { pack_weight_g: 1000, packs_per_unit: 15, sub_unit: '包' },
+  '203012': { pack_weight_g: 1000, packs_per_unit: 15, sub_unit: '包' },
+  '203021': { pack_weight_g: 1000, packs_per_unit: 15, sub_unit: '包' },
   // 配料
   'BA013': { pack_weight_g: 3000, packs_per_unit: 6, sub_unit: '包' },
   'BA015': { pack_weight_g: 3000, packs_per_unit: 6, sub_unit: '包' },
@@ -383,7 +383,7 @@ const CATEGORY_SORT_ORDER = {
   ],
   '原汁/鮮乳': [
     'QC001', 'QC002', 'QC003', 'QC004', 'QC005', 'QC006', 'QC015', 'QC016', // 原汁類
-    'QC007', 'QC008', 'QC009', // 鮮乳/鮮奶油
+    'QC007', 'QC008', 'QC009', 'QC019', // 鮮乳/鮮奶油
     'QC018', // 蘋果醬
   ],
 };
