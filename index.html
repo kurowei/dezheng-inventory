@@ -825,11 +825,13 @@ function buildRecordItem(item, r) {
     }
   }
 
+  const roundedQty = Math.round(convertedQty * 100) / 100;
+
   return {
     sku: item.sku, name: item.name, spec: item.spec, unit: item.unit, price: item.price,
-    qty: Math.round(convertedQty * 100) / 100,
+    qty: roundedQty,
     qtyLabel,
-    amount: Math.round(item.price * convertedQty),
+    amount: Math.round(item.price * roundedQty),
     rawQty,
     loosePacks: r.loosePacks,
     subQty: r.subQty,
