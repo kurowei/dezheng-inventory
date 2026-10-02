@@ -318,16 +318,14 @@ const PACKAGING = {
   'QC002': { unit_weight_g: 1070 },
   'QC003': { unit_weight_g: 900 },
   'QC004': { unit_weight_g: 900 },
-  'QC005': { unit_weight_g: 900 },
-  'QC006': { unit_weight_g: 950 },
   'QC007': { unit_weight_g: 1000 },
+  'QC008': { unit_weight_g: 1040 },
   'QC015': { unit_weight_g: 1200 },
   'QC016': { unit_weight_g: 4000 },
-  // 原汁/鮮乳 — 三層計數（箱→罐→杯）
-  'QC018': { sub_unit: '罐', sub_per_unit: 6, piece_unit: '杯', pieces_per_sub: 57 },
-  'QC017': { sub_unit: '份', sub_per_unit: 2 },
   'QC019': { unit_weight_g: 1900 },
-  'QC008': { unit_weight_g: 1040 },
+  'QC020': { unit_weight_g: 1900 },
+  'QC021': { unit_weight_g: 700 },
+  'QC017': { sub_unit: '份', sub_per_unit: 2 },
   // 糖漿/粉類/凍粉
   '104001': { pack_weight_g: 907.4, packs_per_unit: 12, sub_unit: '包' },
   '104002': { unit_weight_g: 1800 },
@@ -354,7 +352,7 @@ const PACKAGING = {
   '203016': { sub_unit: '袋', sub_per_unit: 19, piece_unit: '卷', pieces_per_sub: 10 },
   '203019': { sub_unit: '袋', sub_per_unit: 100, piece_unit: '個', pieces_per_sub: 20 },
   // 包材 — 整箱有多包，每包固定重量
-  '202015': { pack_weight_g: 277.78, packs_per_unit: 18, sub_unit: '包' },
+  '202015': { pack_weight_g: 1250, packs_per_unit: 4, sub_unit: '包' },
   '202016': { pack_weight_g: 277.78, packs_per_unit: 18, sub_unit: '包' },
   '203010': { pack_weight_g: 1000, packs_per_unit: 15, sub_unit: '包' },
   '203011': { pack_weight_g: 1000, packs_per_unit: 15, sub_unit: '包' },
@@ -387,9 +385,8 @@ const CATEGORY_SORT_ORDER = {
     'QC010', 'QC011', // 發票/貼紙
   ],
   '原汁/鮮乳': [
-    'QC001', 'QC002', 'QC003', 'QC004', 'QC005', 'QC006', 'QC015', 'QC016', // 原汁類
+    'QC001', 'QC002', 'QC003', 'QC004', 'QC015', 'QC016', 'QC020', 'QC021', // 原汁類
     'QC007', 'QC008', 'QC009', 'QC019', // 鮮乳/鮮奶油
-    'QC018', // 蘋果醬
   ],
 };
 
