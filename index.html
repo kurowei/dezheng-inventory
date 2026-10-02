@@ -62,6 +62,16 @@
     -webkit-appearance: none;
   }
   input[type=number] { text-align: right; }
+  select {
+    width: 100%;
+    padding: 12px;
+    font-size: 16px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    margin-bottom: 4px;
+    background: white;
+    -webkit-appearance: none;
+  }
   button {
     width: 100%;
     padding: 14px;
@@ -224,6 +234,12 @@
     </div>
 
     <div class="card">
+      <label>盤點範圍</label>
+      <select id="weekdaySelect">
+        <option value="">全品項盤點</option>
+        <option value="週二">週二特定品項盤點</option>
+        <option value="週四">週四特定品項盤點</option>
+      </select>
       <label>你的姓名</label>
       <input type="text" id="staffName" placeholder="請輸入姓名">
       <button onclick="startCount()">開始盤點</button>
@@ -404,6 +420,13 @@ function sortItemsByCategory(items, cat) {
 let ITEMS = [];
 let itemsReadyPromise = loadItems(); // 頁面一載入就先打 API，跟使用者輸入姓名同時進行
 
+// 依 Google Sheet 的「特定品項盤點」欄位（值為「週二」或「週四」，未分類則留空）
+// 篩選出某次盤點實際要用到的品項：不選星期＝全品項，選了星期＝只留該星期的品項
+function filterItemsByWeekday(items, weekday) {
+  if (!weekday) return items;
+  return items.filter(item => String(item['特定品項盤點'] || '').trim() === weekday);
+}
+
 async function loadItems() {
   try {
     const controller = new AbortController();
@@ -428,6 +451,8 @@ async function loadItems() {
 
 const STORAGE_KEY = "dezheng_inventory_history";
 let currentStaff = "";
+let currentWeekday = ""; // "" = 全品項盤點，否則為 "週二" 或 "週四"
+let CURRENT_ITEMS = []; // 本次盤點實際顯示/填寫的品項（依 currentWeekday 從 ITEMS 篩選出來）
 let currentResults = {}; // { sku: {qty, note} }
 let categoryNotes = {}; // { 分類名稱: 備註文字 }，供新進品項尚未建檔時先暫時文字記錄
 let editingId = null; // 若正在修改某筆已存在的紀錄，記住它的 id 以便覆蓋而非新增
@@ -438,7 +463,14 @@ function showScreen(name) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById('screen-' + name).classList.add('active');
   if (name === 'history') renderHistory();
-  if (name === 'start') document.getElementById('staffName').value = '';
+  if (name === 'start') {
+    document.getElementById('staffName').value = '';
+    document.getElementById('weekdaySelect').value = '';
+  }
+}
+
+function weekdayModeLabel(weekday) {
+  return weekday ? `（${weekday}品項盤點）` : '';
 }
 
 // ── 開始盤點 ──────────────────────────
@@ -446,11 +478,12 @@ async function startCount() {
   const name = document.getElementById('staffName').value.trim();
   if (!name) { alert('請輸入姓名'); return; }
   currentStaff = name;
+  currentWeekday = document.getElementById('weekdaySelect').value;
   currentResults = {};
   categoryNotes = {};
   editingId = null;
 
-  document.getElementById('countSubtitle').textContent = `${STORE_NAME}　盤點人：${name}`;
+  document.getElementById('countSubtitle').textContent = `${STORE_NAME}　盤點人：${name}${weekdayModeLabel(currentWeekday)}`;
   showScreen('count');
   document.getElementById('itemsWarning').style.display = 'none';
   document.getElementById('itemList').innerHTML = '<div class="loading-state"><span class="spinner"></span>品項載入中，請稍候…</div>';
@@ -465,6 +498,7 @@ async function startCount() {
   }
   applyConnStatus(result);
 
+  CURRENT_ITEMS = filterItemsByWeekday(ITEMS, currentWeekday);
   renderItemList();
   updateProgress();
 }
@@ -492,9 +526,13 @@ function applyConnStatus(result) {
 
 function renderItemList() {
   const container = document.getElementById('itemList');
+  if (CURRENT_ITEMS.length === 0) {
+    container.innerHTML = `<div class="empty-state">⚠️ 目前沒有設定為「${currentWeekday}」的品項，請確認 Google Sheet 品項主檔的「特定品項盤點」欄位是否已分類</div>`;
+    return;
+  }
   const categories = [];
   const byCategory = {};
-  ITEMS.forEach(item => {
+  CURRENT_ITEMS.forEach(item => {
     const cat = item.category || '未分類';
     if (!byCategory[cat]) { byCategory[cat] = []; categories.push(cat); }
     byCategory[cat].push(item);
@@ -688,7 +726,7 @@ function onItemSearchInput(val) {
   const q = val.trim().toLowerCase();
   if (!q) { resultsEl.style.display = 'none'; resultsEl.innerHTML = ''; return; }
 
-  const matches = ITEMS.filter(item =>
+  const matches = CURRENT_ITEMS.filter(item =>
     item.name.toLowerCase().includes(q) || String(item.sku).toLowerCase().includes(q)
   ).slice(0, 20);
 
@@ -788,7 +826,7 @@ function adjustQty(sku, delta) {
 
 function updateProgress() {
   const filled = Object.keys(currentResults).length;
-  const pct = Math.round((filled / ITEMS.length) * 100);
+  const pct = CURRENT_ITEMS.length ? Math.round((filled / CURRENT_ITEMS.length) * 100) : 0;
   document.getElementById('progressFill').style.width = pct + '%';
 }
 
@@ -888,8 +926,9 @@ function finishCount() {
     id: editingId || Date.now(),
     store: STORE_NAME,
     staff: currentStaff,
+    weekday: currentWeekday || null,
     datetime: new Date().toISOString(),
-    items: ITEMS.filter(i => currentResults[i.sku] !== undefined)
+    items: CURRENT_ITEMS.filter(i => currentResults[i.sku] !== undefined)
       .map(i => buildRecordItem(i, currentResults[i.sku])),
     categoryNotes: notes
   };
@@ -905,6 +944,7 @@ async function backToEdit() {
   if (!record) return;
 
   currentStaff = record.staff;
+  currentWeekday = record.weekday || "";
   currentResults = {};
   categoryNotes = Object.assign({}, record.categoryNotes);
   record.items.forEach(i => {
@@ -919,16 +959,17 @@ async function backToEdit() {
   });
   editingId = record.id;
 
-  document.getElementById('countSubtitle').textContent = `${record.store}　盤點人：${record.staff}`;
+  document.getElementById('countSubtitle').textContent = `${record.store}　盤點人：${record.staff}${weekdayModeLabel(currentWeekday)}`;
   showScreen('count');
   applyConnStatus(await itemsReadyPromise);
+  CURRENT_ITEMS = filterItemsByWeekday(ITEMS, currentWeekday);
   renderItemList();
   updateProgress();
 }
 
 function showDoneScreen(record) {
   document.getElementById('doneSummary').textContent =
-    `單號 ${getRecordNo(record)}　${record.store}　${record.staff}　${formatDate(record.datetime)}`;
+    `單號 ${getRecordNo(record)}　${record.store}　${record.staff}　${formatDate(record.datetime)}${weekdayModeLabel(record.weekday)}`;
 
   let html = '<tr><th>品項</th><th class="num">數量</th></tr>';
   record.items.forEach(i => {
@@ -990,7 +1031,7 @@ function renderHistory() {
         <div class="history-item-main" onclick='reopenRecord(${r.id})'>
           <div>
             <div class="name">${r.staff}</div>
-            <div class="date">單號 ${getRecordNo(r)}　${formatDate(r.datetime)}　${r.items.length} 項</div>
+            <div class="date">單號 ${getRecordNo(r)}　${formatDate(r.datetime)}　${r.items.length} 項${weekdayModeLabel(r.weekday)}</div>
           </div>
           <div>›</div>
         </div>
@@ -1040,20 +1081,31 @@ function getRecordNo(record) {
 }
 
 // ── 匯出 Excel ────────────────────────
+// 特定品項盤點（record.weekday 有值）不含單價/金額，欄位比全品項盤點少兩欄
 function buildWorkbook(record) {
-  const total = record.items.reduce((s, i) => s + i.amount, 0);
+  const isSpecial = !!record.weekday;
   const rows = [
     ['單據編號', getRecordNo(record)],
     ['盤點門市', record.store],
     ['盤點人', record.staff],
     ['盤點時間', formatDate(record.datetime)],
-    [],
-    ['品號', '品名', '規格', '單位', '單價', '盤點數量', '數量明細', '盤點金額'],
   ];
-  record.items.forEach(i => {
-    rows.push([i.sku, i.name, i.spec, i.unit, i.price, i.qty, i.qtyLabel || '', i.amount]);
-  });
-  rows.push(['', '', '', '', '', '', '合計', total]);
+  if (isSpecial) rows.push(['特定品項盤點', record.weekday]);
+  rows.push([]);
+
+  if (isSpecial) {
+    rows.push(['品號', '品名', '規格', '單位', '盤點數量', '數量明細']);
+    record.items.forEach(i => {
+      rows.push([i.sku, i.name, i.spec, i.unit, i.qty, i.qtyLabel || '']);
+    });
+  } else {
+    rows.push(['品號', '品名', '規格', '單位', '單價', '盤點數量', '數量明細', '盤點金額']);
+    record.items.forEach(i => {
+      rows.push([i.sku, i.name, i.spec, i.unit, i.price, i.qty, i.qtyLabel || '', i.amount]);
+    });
+    const total = record.items.reduce((s, i) => s + i.amount, 0);
+    rows.push(['', '', '', '', '', '', '合計', total]);
+  }
 
   const noteCats = Object.keys(record.categoryNotes || {});
   if (noteCats.length > 0) {
@@ -1063,7 +1115,9 @@ function buildWorkbook(record) {
   }
 
   const ws = XLSX.utils.aoa_to_sheet(rows);
-  ws['!cols'] = [{wch:10},{wch:22},{wch:18},{wch:6},{wch:8},{wch:10},{wch:26},{wch:10}];
+  ws['!cols'] = isSpecial
+    ? [{wch:10},{wch:22},{wch:18},{wch:6},{wch:10},{wch:26}]
+    : [{wch:10},{wch:22},{wch:18},{wch:6},{wch:8},{wch:10},{wch:26},{wch:10}];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "盤點結果");
   return wb;
@@ -1074,19 +1128,23 @@ const EXCEL_ZIP_PASSWORD = '1006'; // 匯出的 Excel 一律包成有密碼的 z
 function getFileName(record) {
   const d = new Date(record.datetime);
   const dateStr = `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
-  return `${record.store}_盤點_${dateStr}_${record.staff}.xlsx`;
+  const scopeTag = record.weekday ? `_${record.weekday}` : '';
+  return `${record.store}${scopeTag}_盤點_${dateStr}_${record.staff}.xlsx`;
 }
 
 function getZipFileName(record) {
   return getFileName(record).replace(/\.xlsx$/, '.zip');
 }
 
-// 把 Excel 包成有密碼的 zip（用相容性較好的傳統 ZipCrypto，多數手機/電腦內建解壓縮都打得開）
-async function buildProtectedZip(record) {
+function buildPlainXlsxBlob(record) {
   const wb = buildWorkbook(record);
   const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-  const xlsxBlob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  return new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+}
 
+// 把 Excel 包成有密碼的 zip（用相容性較好的傳統 ZipCrypto，多數手機/電腦內建解壓縮都打得開）
+async function buildProtectedZip(record) {
+  const xlsxBlob = buildPlainXlsxBlob(record);
   const zipWriter = new zip.ZipWriter(new zip.BlobWriter('application/zip'), {
     password: EXCEL_ZIP_PASSWORD,
     zipCrypto: true
@@ -1095,19 +1153,28 @@ async function buildProtectedZip(record) {
   return zipWriter.close();
 }
 
+// 全品項盤點含單價/金額，包成有密碼的 zip 避免店員直接看到金額；
+// 特定品項盤點（record.weekday 有值）不含單價/金額，直接輸出 Excel，不加密碼
+async function buildExportBlob(record) {
+  if (record.weekday) {
+    return { blob: buildPlainXlsxBlob(record), filename: getFileName(record) };
+  }
+  return { blob: await buildProtectedZip(record), filename: getZipFileName(record) };
+}
+
 async function downloadExcel() {
   const record = window._lastRecord;
-  let zipBlob;
+  let result;
   try {
-    zipBlob = await buildProtectedZip(record);
+    result = await buildExportBlob(record);
   } catch (err) {
-    alert('產生加密檔案失敗，請檢查網路連線後再試一次');
+    alert('產生匯出檔案失敗，請檢查網路連線後再試一次');
     return;
   }
-  const url = URL.createObjectURL(zipBlob);
+  const url = URL.createObjectURL(result.blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = getZipFileName(record);
+  a.download = result.filename;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -1116,22 +1183,21 @@ async function downloadExcel() {
 
 async function shareExcel() {
   const record = window._lastRecord;
-  let zipBlob;
+  let result;
   try {
-    zipBlob = await buildProtectedZip(record);
+    result = await buildExportBlob(record);
   } catch (err) {
-    alert('產生加密檔案失敗，請檢查網路連線後再試一次');
+    alert('產生匯出檔案失敗，請檢查網路連線後再試一次');
     return;
   }
-  const zipName = getZipFileName(record);
-  const file = new File([zipBlob], zipName, { type: 'application/zip' });
+  const file = new File([result.blob], result.filename, { type: result.blob.type });
 
   // 優先用手機原生分享（可直接選 LINE）
   if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
     try {
       await navigator.share({
         files: [file],
-        title: zipName,
+        title: result.filename,
         text: `${record.store} 盤點結果 - ${record.staff}`
       });
       return;
